@@ -241,8 +241,7 @@ function tryLogin() {
   dashPw = v;
   sessionStorage.setItem("dash_pw", v);
   document.getElementById("login-gate").style.display = "none";
-  updateStatus();
-  loadPeople();
+  startPolling();
 }
 document.getElementById("pw-input").addEventListener("keydown", e => {
   if (e.key === "Enter") tryLogin();
@@ -536,9 +535,14 @@ document.getElementById("search-input").addEventListener("keydown", e => {
   if (e.key === "Enter") loadPeople();
 });
 
-updateStatus();
-loadPeople();
-setInterval(updateStatus, 5000);
+let pollTimer = null;
+function startPolling() {
+  if (pollTimer) return;
+  updateStatus();
+  loadPeople();
+  pollTimer = setInterval(updateStatus, 5000);
+}
+if (dashPw) startPolling();
 </script>
 </body>
 </html>
