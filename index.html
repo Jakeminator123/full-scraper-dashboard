@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>full_scraper — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#0f1117;--card:#1a1d27;--border:#2a2d3a;--text:#e4e4e7;
+    --dim:#71717a;--accent:#6366f1;--green:#22c55e;--yellow:#eab308;
+    --red:#ef4444;--blue:#3b82f6;--cyan:#06b6d4;--purple:#a855f7;
+    --radius:12px;--font:'Segoe UI',system-ui,-apple-system,sans-serif}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);
+    font-size:14px;line-height:1.5;padding:20px}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
+  .grid-2{grid-template-columns:1fr 1fr}
+  .card{background:var(--card);border:1px solid var(--border);
+    border-radius:var(--radius);padding:20px;position:relative}
+  .card h3{color:var(--dim);font-size:11px;text-transform:uppercase;
+    letter-spacing:1.5px;margin-bottom:8px}
+  .big{font-size:32px;font-weight:700;font-variant-numeric:tabular-nums}
+  .sub{color:var(--dim);font-size:12px;margin-top:2px}
+  .status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+  .dot-running{background:var(--green);animation:pulse 1.5s infinite}
+  .dot-paused{background:var(--yellow)}
+  .dot-idle{background:var(--dim)}
+  .dot-error{background:var(--red)}
+  .dot-done{background:var(--blue)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .bar-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px}
+  .bar-fill{height:100%;border-radius:4px;transition:width .5s ease}
+  .bar-accent{background:linear-gradient(90deg,var(--accent),var(--purple))}
+  .bar-green{background:linear-gradient(90deg,var(--green),var(--cyan))}
+  .bar-blue{background:linear-gradient(90deg,var(--blue),var(--cyan))}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+  header h1{font-size:22px;font-weight:600}
+  header h1 span{color:var(--accent)}
+  .pill{display:inline-flex;align-items:center;padding:4px 12px;
+    border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border)}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);
+    background:var(--card);color:var(--text);cursor:pointer;font-size:13px;
+    font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn-primary:hover{opacity:.85}
+  .btn-danger{border-color:var(--red);color:var(--red)}
+  .btn-danger:hover{background:var(--red);color:#fff}
+  .btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+  .log-box{max-height:200px;overflow-y:auto;font-family:'Cascadia Code',monospace;
+    font-size:12px;padding:12px;background:#12141c;border-radius:8px;
+    margin-top:8px;white-space:pre-wrap;color:var(--dim)}
+  .log-err{color:var(--red)}.log-ok{color:var(--green)}.log-info{color:var(--cyan)}
+  .chart-box{max-width:220px;margin:0 auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--dim);font-weight:500;padding:6px 8px;
+    border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:1px}
+  td{padding:6px 8px;border-bottom:1px solid #1f2130}
+  tr:hover td{background:#1f2235}
+  .table-scroll{max-height:350px;overflow-y:auto}
+  .mono{font-family:'Cascadia Code',monospace;font-size:12px}
+  .text-green{color:var(--green)}.text-dim{color:var(--dim)}
+  .text-yellow{color:var(--yellow)}.text-red{color:var(--red)}
+  .flex-between{display:flex;justify-content:space-between;align-items:center}
+  .update-indicator{font-size:11px;color:var(--dim)}
+  .kv-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-top:8px}
+  .kv-item{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+  .kv-item b{display:block;color:var(--text);font-size:20px;font-weight:700;letter-spacing:0;text-transform:none}
+  .small-note{font-size:12px;color:var(--dim);margin-top:8px}
+  .explain-list{margin-top:10px;padding-left:18px;color:var(--dim)}
+  .explain-list li{margin:6px 0}
+  .warn-box{display:none;margin:0 0 12px;padding:8px 10px;border:1px solid var(--yellow);
+    border-radius:8px;color:var(--yellow);font-size:12px}
+  footer{text-align:center;color:var(--dim);font-size:11px;margin-top:32px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr 1fr}.grid-2{grid-template-columns:1fr}}
+  @media(max-width:600px){.grid,.grid-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- Login gate -->
+<div id="login-gate" style="position:fixed;inset:0;z-index:9999;background:var(--bg);
+  display:flex;align-items:center;justify-content:center">
+  <div class="card" style="width:340px;text-align:center">
+    <h3>Logga in</h3>
+    <input id="pw-input" type="password" placeholder="Lösenord"
+      style="width:100%;padding:10px 14px;margin:12px 0;border-radius:8px;border:1px solid var(--border);
+      background:var(--bg);color:var(--text);font-size:14px;text-align:center">
+    <button class="btn btn-primary" style="width:100%" onclick="tryLogin()">Logga in</button>
+    <div id="pw-error" style="color:var(--red);font-size:12px;margin-top:8px;display:none">Fel lösenord</div>
+  </div>
+</div>
+
+<header>
+  <h1><span>full_scraper</span> Dashboard</h1>
+  <div>
+    <span class="pill" id="status-pill">
+      <span class="status-dot dot-idle" id="status-dot"></span>
+      <span id="status-text">Connecting...</span>
+    </span>
+    <span class="update-indicator" id="last-update" style="margin-left:12px"></span>
+  </div>
+</header>
+
+<div class="warn-box" id="heartbeat-warning"></div>
+
+<!-- Row 1: Key metrics -->
+<div class="grid">
+  <div class="card">
+    <h3>Personer i databasen</h3>
+    <div class="big text-green" id="m-people">—</div>
+    <div class="sub" id="m-people-sub"></div>
+  </div>
+  <div class="card">
+    <h3>Fordon i databasen</h3>
+    <div class="big" style="color:var(--cyan)" id="m-vehicles">—</div>
+  </div>
+  <div class="card">
+    <h3>Databasstorlek</h3>
+    <div class="big" id="m-dbsize">—</div>
+    <div class="sub" id="m-eta"></div>
+  </div>
+</div>
+
+<!-- Row 2: Phase progress -->
+<div class="grid">
+  <div class="card">
+    <h3>Fas 0 — Ratsit Harvesting</h3>
+    <div class="flex-between">
+      <span class="big" style="color:var(--purple);font-size:24px" id="p0-found">—</span>
+      <span class="sub" id="p0-date"></span>
+    </div>
+    <div class="bar-track"><div class="bar-fill bar-accent" id="p0-bar" style="width:0%"></div></div>
+    <div class="sub" id="p0-pct" style="margin-top:4px"></div>
+  </div>
+  <div class="card">
+    <h3>Fas 1 — Fordon</h3>
+    <div class="flex-between">
+      <span class="big" style="color:var(--cyan);font-size:24px" id="p1-vehicles">—</span>
+      <span class="sub" id="p1-prefix"></span>
+    </div>
+    <div class="bar-track"><div class="bar-fill bar-blue" id="p1-bar" style="width:0%"></div></div>
+    <div class="sub" id="p1-pct" style="margin-top:4px"></div>
+  </div>
+  <div class="card">
+    <h3>Fas 2 — PNR Brute-force</h3>
+    <div class="flex-between">
+      <span class="big" style="color:var(--green);font-size:24px" id="p2-found">—</span>
+      <span class="sub" id="p2-pos"></span>
+    </div>
+    <div class="bar-track"><div class="bar-fill bar-green" id="p2-bar" style="width:0%"></div></div>
+    <div class="sub" id="p2-detail" style="margin-top:4px"></div>
+  </div>
+</div>
+
+<!-- Row 3: Charts + controls -->
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Datadistribution</h3>
+    <div class="chart-box"><canvas id="pie-chart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Kontroller och export</h3>
+    <div class="actions">
+      <button class="btn btn-primary" id="btn-start" onclick="doStart()">Starta jobb</button>
+      <button class="btn" id="btn-stop" onclick="doStop()">Pausa</button>
+      <button class="btn btn-danger" onclick="doReset()">Reset DB</button>
+    </div>
+    <h3 style="margin-top:20px">Ladda ned databasen</h3>
+    <div class="actions">
+      <button class="btn" onclick="doExport('json')">JSON</button>
+      <button class="btn" onclick="doExport('csv')">CSV</button>
+      <button class="btn" onclick="doExport('sqlite')">SQLite</button>
+    </div>
+    <h3 style="margin-top:20px">Logg</h3>
+    <div class="log-box" id="log-box">Ansluter...</div>
+  </div>
+</div>
+
+<!-- Row 4: Goal forecast + explainer -->
+<div class="grid grid-2" style="margin-top:16px">
+  <div class="card">
+    <h3>Målprognos (personer)</h3>
+    <div class="kv-grid">
+      <div class="kv-item">Mål<b id="g-target">—</b></div>
+      <div class="kv-item">Nuvarande<b id="g-current">—</b></div>
+      <div class="kv-item">Kvar<b id="g-remaining">—</b></div>
+      <div class="kv-item">Progress<b id="g-progress">—</b></div>
+      <div class="kv-item">Hastighet<b id="g-speed">—</b></div>
+      <div class="kv-item">ETA<b id="g-eta">—</b></div>
+    </div>
+    <div class="small-note" id="g-eta-at">Beräknad sluttid: —</div>
+  </div>
+  <div class="card">
+    <h3>Vad betyder delarna?</h3>
+    <div class="small-note">Tre faser körs för att bygga en komplett persondatabas med robust resume vid redeploy.</div>
+    <ul class="explain-list">
+      <li><b>Fas 0 (Ratsit Harvesting):</b> söker per födelsedatum + kön, löser PNR och fyller på \"snabba träffar\".</li>
+      <li><b>Fas 1 (Fordon):</b> går prefix AAA-ZZZ och samlar fordonsdata/ägarkopplingar från biluppgifter.</li>
+      <li><b>Fas 2 (PNR brute-force):</b> systematisk Luhn-baserad körning som fyller luckorna till målantalet.</li>
+      <li><b>Klar-prognos:</b> ETA räknas mot målantal personer (default 10,4M om inget target skickas).</li>
+      <li><b>Redeploy-säkerhet:</b> checkpoint + auto-resume gör att jobb fortsätter efter omstart.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Row 4: People table -->
+<div class="card" style="margin-top:16px">
+  <div class="flex-between" style="margin-bottom:12px">
+    <h3 style="margin:0">Senast hittade personer</h3>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="search-input" placeholder="Sök namn..." style="padding:6px 12px;
+        border-radius:8px;border:1px solid var(--border);background:var(--bg);
+        color:var(--text);font-size:13px;width:180px">
+      <button class="btn" onclick="loadPeople()">Ladda</button>
+    </div>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>PNR</th><th>Namn</th><th>Alder</th><th>Stad</th><th>Adress</th><th>Fordon</th>
+      </tr></thead>
+      <tbody id="people-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<footer>full_scraper dashboard — polling var 5:e sekund</footer>
+
+<script>
+const API = "/api";
+let pieChart = null;
+let prevSnapshot = null;
+let prevTime = null;
+let dashPw = sessionStorage.getItem("dash_pw") || "";
+
+function tryLogin() {
+  const v = document.getElementById("pw-input").value;
+  if (!v) return;
+  dashPw = v;
+  sessionStorage.setItem("dash_pw", v);
+  document.getElementById("login-gate").style.display = "none";
+  updateStatus();
+  loadPeople();
+}
+document.getElementById("pw-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") tryLogin();
+});
+if (dashPw) {
+  document.getElementById("login-gate").style.display = "none";
+}
+
+function fmt(n) { return n != null ? n.toLocaleString("sv-SE") : "—"; }
+
+function logMsg(msg, cls="") {
+  const box = document.getElementById("log-box");
+  const line = document.createElement("div");
+  line.className = cls;
+  line.textContent = `[${new Date().toLocaleTimeString("sv-SE")}] ${msg}`;
+  box.appendChild(line);
+  if (box.children.length > 80) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function fetchApi(path, opts={}) {
+  const headers = { ...(opts.headers || {}), "x-dashboard-auth": dashPw };
+  const r = await fetch(API + path, { ...opts, headers });
+  if (r.status === 401) {
+    sessionStorage.removeItem("dash_pw");
+    dashPw = "";
+    document.getElementById("login-gate").style.display = "flex";
+    document.getElementById("pw-error").style.display = "block";
+    throw new Error("Unauthorized");
+  }
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function calcSpeed(curr, prev, elapsed) {
+  if (!prev || elapsed <= 0) return null;
+  const diff = curr - prev;
+  if (diff <= 0) return null;
+  return diff / elapsed * 3600;
+}
+
+function fmtSpeed(perHour) {
+  if (perHour == null || perHour <= 0) return "—";
+  if (perHour >= 1000) return `${(perHour/1000).toFixed(1)}k/h`;
+  return `${Math.round(perHour)}/h`;
+}
+
+function fmtDuration(sec) {
+  if (sec == null) return "—";
+  if (sec <= 0) return "0m";
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function fmtEtaAt(iso) {
+  if (!iso) return "—";
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "—";
+  return dt.toLocaleString("sv-SE");
+}
+
+async function updateStatus() {
+  try {
+    const s = await fetchApi("/status");
+    const now = Date.now();
+    const status = s.status || "idle";
+    const running = s.is_running;
+
+    // Status indicator
+    const dot = document.getElementById("status-dot");
+    const dotCls = {running:"dot-running",paused:"dot-paused",
+      error:"dot-error",done:"dot-done",idle:"dot-idle",
+      phase1_done:"dot-done",phase0_done:"dot-done"};
+    dot.className = "status-dot " + (dotCls[status] || "dot-idle");
+    const runtimeState = s.runtime_state || status;
+    let statusLabel = `${status} — fas ${s.phase || "idle"}`;
+    if (runtimeState === "stalled") statusLabel += " (ingen ny progress)";
+    if (runtimeState === "resuming") statusLabel += " (återstartar)";
+    document.getElementById("status-text").textContent = statusLabel;
+    document.getElementById("last-update").textContent =
+      `${new Date().toLocaleTimeString("sv-SE")}`;
+
+    const warningBox = document.getElementById("heartbeat-warning");
+    if (s.heartbeat_is_stale) {
+      warningBox.style.display = "block";
+      warningBox.textContent =
+        `Varning: ingen progress på ${fmt(s.heartbeat_age_seconds || 0)}s. Tjänsten kan vara seg eller omstartad.`;
+    } else if (runtimeState === "resuming") {
+      warningBox.style.display = "block";
+      warningBox.textContent = "Tjänsten återstartar från checkpoint. Vänta en stund så uppdateras siffrorna.";
+    } else {
+      warningBox.style.display = "none";
+      warningBox.textContent = "";
+    }
+
+    // Button states
+    document.getElementById("btn-start").disabled = running;
+    document.getElementById("btn-start").textContent = running ? "Kör..." : "Starta jobb";
+    document.getElementById("btn-stop").disabled = !running;
+
+    // Speed calculations
+    const elapsed = prevTime ? (now - prevTime) / 1000 : 0;
+    const people = s.total_people_in_db || 0;
+    const vehicles = s.total_vehicles_in_db || 0;
+    const tested = s.total_tested || 0;
+    const found = s.total_found || 0;
+
+    const pSpeed = calcSpeed(people, prevSnapshot?.people, elapsed);
+    const vSpeed = calcSpeed(vehicles, prevSnapshot?.vehicles, elapsed);
+    const tSpeed = calcSpeed(tested, prevSnapshot?.tested, elapsed);
+    const serverPeopleSpeed = s.speed_people_per_hour || 0;
+    const serverTestedSpeed = s.speed_tested_per_hour || 0;
+    const peopleSpeed = serverPeopleSpeed > 0 ? serverPeopleSpeed : pSpeed;
+    const testedSpeed = serverTestedSpeed > 0 ? serverTestedSpeed : tSpeed;
+
+    // Key metrics
+    const withV = s.people_with_vehicles || 0;
+    const withoutV = s.people_without_vehicles || 0;
+    document.getElementById("m-people").textContent = fmt(people);
+    const speedTag = peopleSpeed ? ` · ${fmtSpeed(peopleSpeed)}` : "";
+    document.getElementById("m-people-sub").textContent =
+      `${fmt(withV)} med fordon · ${fmt(withoutV)} utan${speedTag}`;
+    document.getElementById("m-vehicles").textContent = fmt(vehicles);
+    document.getElementById("m-dbsize").textContent = `${s.db_size_mb || 0} MB`;
+    const eta = s.eta_seconds;
+    if (eta != null) {
+      document.getElementById("m-eta").textContent = `Fas 2 ETA: ${fmtDuration(eta)}`;
+    } else {
+      document.getElementById("m-eta").textContent = "";
+    }
+
+    // Phase 0
+    const p0found = s.phase0_found || 0;
+    document.getElementById("p0-found").textContent = fmt(p0found);
+    document.getElementById("p0-date").textContent = s.phase0_date || "ej startad";
+    const p0pct = s.phase0_pct_done || 0;
+    document.getElementById("p0-bar").style.width = p0pct + "%";
+    const p0speed = calcSpeed(p0found, prevSnapshot?.p0found, elapsed);
+    const p0days = (s.phase0_days_done && s.phase0_days_total)
+      ? ` · ${fmt(s.phase0_days_done)}/${fmt(s.phase0_days_total)} dagar`
+      : "";
+    document.getElementById("p0-pct").textContent =
+      `${p0pct}%${p0speed ? " · " + fmtSpeed(p0speed) : ""}${p0days}`;
+
+    // Phase 1
+    const p1d = s.phase1_prefixes_done || 0;
+    const p1t = s.phase1_prefixes_total || 17576;
+    const p1pct = s.phase1_pct || 0;
+    const p1v = s.phase1_vehicles || 0;
+    document.getElementById("p1-vehicles").textContent = fmt(p1v);
+    document.getElementById("p1-prefix").textContent = `${fmt(p1d)}/${fmt(p1t)}`;
+    document.getElementById("p1-bar").style.width = p1pct + "%";
+    const p1speed = calcSpeed(p1v, prevSnapshot?.p1v, elapsed);
+    document.getElementById("p1-pct").textContent =
+      `${p1pct}%${p1speed ? " · " + fmtSpeed(p1speed) : ""}`;
+
+    // Phase 2
+    const p2pct = s.phase2_pct_done || 0;
+    document.getElementById("p2-found").textContent = fmt(found);
+    document.getElementById("p2-pos").textContent = s.current_position || "";
+    document.getElementById("p2-bar").style.width = p2pct + "%";
+    const p2speed = testedSpeed;
+    document.getElementById("p2-detail").textContent =
+      `${p2pct}% · testat ${fmt(tested)} · hit ${s.hit_rate_pct||0}%` +
+      `${p2speed ? " · " + fmtSpeed(p2speed) + " PNR" : ""}` +
+      ` · err ${fmt(s.total_errors||0)}`;
+
+    // Goal forecast
+    const goal = s.target_people_goal || 10400000;
+    const remaining = s.people_remaining_to_goal != null
+      ? s.people_remaining_to_goal
+      : Math.max(0, goal - people);
+    const goalPct = s.goal_progress_pct != null
+      ? s.goal_progress_pct
+      : (goal > 0 ? Math.min(100, (people / goal) * 100) : 0);
+    const goalSpeed = s.speed_people_per_hour || peopleSpeed || 0;
+    const goalEta = s.eta_seconds_to_goal;
+
+    document.getElementById("g-target").textContent = fmt(goal);
+    document.getElementById("g-current").textContent = fmt(people);
+    document.getElementById("g-remaining").textContent = fmt(remaining);
+    document.getElementById("g-progress").textContent = `${goalPct.toFixed(2)}%`;
+    document.getElementById("g-speed").textContent = fmtSpeed(goalSpeed);
+    document.getElementById("g-eta").textContent = fmtDuration(goalEta);
+    document.getElementById("g-eta-at").textContent = `Beräknad sluttid: ${fmtEtaAt(s.eta_at)}`;
+
+    // Pie chart
+    updatePie(withV, withoutV, p0found);
+
+    // Save for speed calc
+    prevSnapshot = { people, vehicles, tested, found, p0found, p1v };
+    prevTime = now;
+  } catch (e) {
+    document.getElementById("status-text").textContent = "Offline";
+    document.getElementById("status-dot").className = "status-dot dot-error";
+  }
+}
+
+function updatePie(withV, withoutV, phase0) {
+  const data = [withV, withoutV, phase0];
+  const labels = ["Med fordon", "Utan fordon", "Via Ratsit (Fas 0)"];
+  const colors = ["#06b6d4", "#eab308", "#a855f7"];
+  if (!pieChart) {
+    pieChart = new Chart(document.getElementById("pie-chart"), {
+      type: "doughnut",
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+      options: {
+        cutout: "65%",
+        plugins: {
+          legend: { position: "bottom", labels: { color: "#71717a", font: { size: 11 },
+            padding: 8, usePointStyle: true, pointStyleWidth: 8 } }
+        }
+      }
+    });
+  } else {
+    pieChart.data.datasets[0].data = data;
+    pieChart.update("none");
+  }
+}
+
+async function loadPeople() {
+  const search = document.getElementById("search-input").value;
+  const params = search ? `?search=${encodeURIComponent(search)}&limit=20`
+                        : "?limit=20";
+  try {
+    const d = await fetchApi("/people" + params);
+    const tbody = document.getElementById("people-tbody");
+    tbody.innerHTML = "";
+    for (const p of (d.results || [])) {
+      const tr = document.createElement("tr");
+      const vCls = p.antal_fordon_egna > 0 ? "text-green" : "text-dim";
+      tr.innerHTML = `
+        <td class="mono">${p.pnr || ""}</td>
+        <td>${p.namn || ""}</td>
+        <td>${p.alder || ""}</td>
+        <td>${p.stad || ""}</td>
+        <td class="text-dim">${(p.gata||"").substring(0,30)}</td>
+        <td class="${vCls}">${p.antal_fordon_egna || 0}</td>`;
+      tbody.appendChild(tr);
+    }
+    logMsg(`Laddade ${d.results?.length || 0} av ${fmt(d.total)} personer`, "log-ok");
+  } catch(e) { logMsg("Fel vid laddning: " + e.message, "log-err"); }
+}
+
+async function doStart() {
+  try {
+    await fetchApi("/job/start", { method: "POST" });
+    logMsg("Jobb startat — alla faser kör parallellt", "log-ok");
+    updateStatus();
+  } catch(e) {
+    if (e.message.includes("409")) logMsg("Jobbet kör redan", "log-info");
+    else logMsg("Startfel: " + e.message, "log-err");
+  }
+}
+async function doStop() {
+  try {
+    await fetchApi("/job/stop", { method: "POST" });
+    logMsg("Stop-signal skickad — pausar efter aktuell batch", "log-info");
+    updateStatus();
+  } catch(e) { logMsg("Stoppfel: " + e.message, "log-err"); }
+}
+async function doReset() {
+  if (!confirm("VARNING: Detta raderar ALLA data permanent. Fortsatt?")) return;
+  if (!confirm("Helt saker? Det gar inte att angra.")) return;
+  try {
+    await fetchApi("/job/reset", { method: "POST" });
+    logMsg("Databas raderad och aterkapad", "log-err");
+    updateStatus();
+  } catch(e) { logMsg("Resetfel: " + e.message, "log-err"); }
+}
+async function doExport(fmt) {
+  try {
+    const r = await fetch(API + "/export/" + fmt, { headers: { "x-dashboard-auth": dashPw } });
+    if (!r.ok) { logMsg("Exportfel: HTTP " + r.status, "log-err"); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fmt === "sqlite" ? "people.db" : "people." + fmt;
+    a.click();
+    URL.revokeObjectURL(url);
+    logMsg("Export " + fmt + " nedladdad", "log-info");
+  } catch(e) { logMsg("Exportfel: " + e.message, "log-err"); }
+}
+
+document.getElementById("search-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") loadPeople();
+});
+
+updateStatus();
+loadPeople();
+setInterval(updateStatus, 5000);
+</script>
+</body>
+</html>
