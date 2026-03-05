@@ -120,6 +120,7 @@
     <h3>Databasstorlek</h3>
     <div class="big" id="m-dbsize">—</div>
     <div class="sub" id="m-eta"></div>
+    <div class="sub" id="m-uptime"></div>
   </div>
 </div>
 
@@ -375,6 +376,16 @@ async function updateStatus() {
       document.getElementById("m-eta").textContent = `Fas 2 ETA: ${fmtDuration(eta)}`;
     } else {
       document.getElementById("m-eta").textContent = "";
+    }
+    const startedAt = s.started_at;
+    if (startedAt) {
+      const startedDate = new Date(startedAt);
+      if (!Number.isNaN(startedDate.getTime())) {
+        const uptimeSec = Math.floor((Date.now() - startedDate.getTime()) / 1000);
+        document.getElementById("m-uptime").textContent = `Aktiv tid: ${fmtDuration(uptimeSec)}`;
+      }
+    } else {
+      document.getElementById("m-uptime").textContent = "";
     }
 
     // Phase 0
