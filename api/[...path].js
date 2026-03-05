@@ -8,8 +8,14 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const remotePath = req.url.replace(/^\/api\/proxy/, "") || "/";
-  const target = SCRAPER_URL.replace(/\/+$/, "") + remotePath;
+  const segments = req.query.path;
+  const remotePath = "/" + (Array.isArray(segments) ? segments.join("/") : segments || "");
+  const query = { ...req.query };
+  delete query.path;
+  const qs = Object.keys(query).length
+    ? "?" + new URLSearchParams(query).toString()
+    : "";
+  const target = SCRAPER_URL.replace(/\/+$/, "") + remotePath + qs;
 
   try {
     const upstream = await fetch(target, {
