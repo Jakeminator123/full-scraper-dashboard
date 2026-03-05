@@ -267,13 +267,33 @@ async function fetchApi(path, opts={}) {
   const headers = { ...(opts.headers || {}), "x-dashboard-auth": dashPw };
   const r = await fetch(API + path, { ...opts, headers });
   if (r.status === 401) {
-    sessionStorage.removeItem("dash_pw");
-    dashPw = "";
-    document.getElementById("login-gate").style.display = "flex";
-    document.getElementById("pw-error").style.display = "block";
-    throw new Error("Unauthorized");
+    const proxyAuth = r.headers.get("x-proxy-auth") || "";
+    let detail = "";
+    try {
+      const body = await r.clone().json();
+      detail = String(body?.detail || body?.error || "").toLowerCase();
+    } catch {}
+
+    if (proxyAuth === "dashboard") {
+      sessionStorage.removeItem("dash_pw");
+      dashPw = "";
+      document.getElementById("login-gate").style.display = "flex";
+      document.getElementById("pw-error").style.display = "block";
+      throw new Error("DashboardUnauthorized");
+    }
+    if (detail.includes("invalid api key")) {
+      throw new Error("UpstreamUnauthorized");
+    }
+    throw new Error("HTTP 401");
   }
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  if (!r.ok) {
+    let detail = "";
+    try {
+      detail = (await r.text()).trim();
+    } catch {}
+    const suffix = detail ? `: ${detail.slice(0, 120)}` : "";
+    throw new Error(`HTTP ${r.status}${suffix}`);
+  }
   return r.json();
 }
 
@@ -450,6 +470,17 @@ async function updateStatus() {
     prevSnapshot = { people, vehicles, tested, found, p0found, p1v };
     prevTime = now;
   } catch (e) {
+    const msg = String(e?.message || "");
+    if (msg === "DashboardUnauthorized") {
+      document.getElementById("status-text").textContent = "Losenord kravs";
+      document.getElementById("status-dot").className = "status-dot dot-paused";
+      return;
+    }
+    if (msg === "UpstreamUnauthorized" || msg.includes("Invalid API key")) {
+      document.getElementById("status-text").textContent = "Render API-nyckel fel";
+      document.getElementById("status-dot").className = "status-dot dot-error";
+      return;
+    }
     document.getElementById("status-text").textContent = "Offline";
     document.getElementById("status-dot").className = "status-dot dot-error";
   }

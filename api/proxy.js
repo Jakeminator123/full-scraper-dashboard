@@ -5,6 +5,7 @@ export default async function handler(req, res) {
 
   const authHeader = req.headers["x-dashboard-auth"] || "";
   if (authHeader !== DASHBOARD_PASSWORD) {
+    res.setHeader("X-Proxy-Auth", "dashboard");
     return res.status(401).json({ error: "Unauthorized" });
   }
 
