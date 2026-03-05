@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   const SCRAPER_URL = process.env.SCRAPER_URL || "https://full-scraper-yain.onrender.com";
   const API_KEY = process.env.SCRAPER_API_KEY || "";
-  const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || "admin";
+  const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || "Ma!!orca123";
 
   const authHeader = req.headers["x-dashboard-auth"] || "";
   if (authHeader !== DASHBOARD_PASSWORD) {
