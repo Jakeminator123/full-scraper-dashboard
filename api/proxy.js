@@ -1,3 +1,4 @@
+// Proxy: dashboard → full_scraper on Render (auth + forward).
 export default async function handler(req, res) {
   const SCRAPER_URL = process.env.SCRAPER_URL || "https://full-scraper-yain.onrender.com";
   const API_KEY = process.env.SCRAPER_API_KEY || "";
